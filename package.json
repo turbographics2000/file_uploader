@@ -1,0 +1,28 @@
+{
+  "name": "file_uploader",
+  "version": "1.0.0",
+  "description": "MongoDBのGridFSを使用したファイルアップローダーのサンプル。\r * アップロード(プログレス表示)\r * ダウンロード\r * 削除",
+  "main": "fileuploader.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/turbographics2000/file_uploader.git"
+  },
+  "keywords": [],
+  "author": "gtk2k",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/turbographics2000/file_uploader/issues"
+  },
+  "homepage": "https://github.com/turbographics2000/file_uploader#readme",
+  "dependencies": {
+    "async-busboy": "^0.6.2",
+    "koa": "^2.4.1",
+    "koa-router": "^7.4.0",
+    "koa-static": "^4.0.2",
+    "mongoose": "^5.0.2",
+    "mongoose-gridfs": "^0.3.2"
+  }
+}
