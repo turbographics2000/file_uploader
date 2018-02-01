@@ -1,4 +1,4 @@
-const uploadFiles = [];
+const uploadFileQueue = [];
 let uploading = false;
 
 uploadListSwitchButton.onclick = function (evt) {
@@ -11,45 +11,64 @@ document.ondrop = async evt => {
     evt.preventDefault();
     const files = [...evt.dataTransfer.files];
     if (files.length) {
+        // アップロードファイルリストを表示        
         uploadList.classList.add('show');
         uploadListTab.classList.add('show');
     }
     files.forEach(file => {
-        uploadFiles.push(file);
+        // キューに登録
+        uploadFileQueue.push(file);
+        // アップロードファイルリスト(UI)にアイテムを追加
         createUploadItem(file);
     });
-    uploadCount.textContent = uploadFiles.length;
+    // アップロード数表示の更新
+    uploadCount.textContent = uploadFileQueue.length;
+    // アップロード中でなければアップロードを開始する
     if (!uploading) {
         uploading = true;
-        uploadList.classList.add('show');
-        uploadListTab.classList.add('show');
-        upload(uploadFiles[0]);
+        upload(uploadFileQueue[0]);
     }
 }
 
 function upload(file) {
+    // アップロードファイルリストの対象アイテムで、アップロード処理で扱う各エレメントを取得
     let uploadItem = document.getElementById(`upload_${file.uploadId}`);
     let cancelButton = document.getElementById(`uploadCancel_${file.uploadId}`);
     let size = document.getElementById(`uploadFileSize_${file.uploadId}`);
     let progressBar = document.getElementById(`uploadProgress_${file.uploadId}`);
+
+    // スクロールで表示領域外だった場合もあるため、表示領域内になるようスクロール
+    uploadItem.scrollIntoView();
+
     let xhr = new XMLHttpRequest();
 
-    uploadItem.scrollIntoView();
+    // 次のジョブへ(使用する変数を渡すのが面倒なのでクロージャーで処理)
     const next = _ => {
+        // アップロードファイルリストから対象アイテムを削除
         uploadItem.remove();
         xhr = null;
         uploadItem = null;
+        cancelButton.onclick = null;
         cancelButton = null;
         size = null;
         progressBar = null;
-        const index = uploadFiles.findIndex(item => item.id === file.id);
+
+        // キューから今回のジョブを削除
+        const index = uploadFileQueue.findIndex(item => item.id === file.id);
         if (index !== -1) {
-            uploadFiles.splice(index, 1);
+            uploadFileQueue.splice(index, 1);
         }
-        uploadCount.textContent = uploadFiles.length;
-        if (uploadFiles.length) {
-            upload(uploadFiles[0]);
+        
+        // アップロード数表示の更新
+        uploadCount.textContent = uploadFileQueue.length;
+        
+        if (uploadFileQueue.length) {
+            // キューが存在すれば次のファイルのアップロードを行う
+            upload(uploadFileQueue[0]);
         } else {
+            // アップロードが完了したら、
+            // アップロードファイルリストを非表示にし、
+            // アップロード中フラグをクリア
             uploadList.classList.remove('show');
             uploadListTab.classList.remove('show');
             uploading = false;
@@ -57,24 +76,25 @@ function upload(file) {
     }
 
     cancelButton.onclick = evt => {
+        // アップロードキャンセル
         xhr.abort();
         next();
     }
 
-    xhr.upload.onloadstart = evt => {
-        size.textContent = `0B/${readableFileSize(evt.total)}`;
-    };
-
     xhr.upload.onprogress = evt => {
+        // アップロードの進捗更新(プログレスバーおよびアップロード済みのサイズ)
         progressBar.style.width = `${(evt.loaded / evt.total) * 100 | 0}%`;
         size.textContent = `${readableFileSize(evt.loaded)}/${readableFileSize(evt.total)}`;
     };
 
     xhr.onload = evt => {
+        // 完了したら、レスポンスでGridFSに登録されたファイル情報が返ってくるので、
+        // それをもとにファイルリストのアイテムを作成する
         createFileListItem(xhr.response[0]);
         next();
     };
 
+    // ファイルをアップロード
     xhr.open('POST', `/fileup`);
     xhr.responseType = 'json';
     const fd = new FormData();
@@ -83,6 +103,8 @@ function upload(file) {
 }
 
 function createUploadItem(file) {
+    // アップロードファイルリストに表示するアイテムを作成
+    // jQuery等使用せず生のDOMメソッドでアイテムを作成
     file.uploadId = (new MediaStream()).id.replace(/{|}|-/g, '');
     const item = document.createElement('div');
     const name = document.createElement('div');
@@ -115,6 +137,7 @@ function createUploadItem(file) {
 }
 
 function createFileListItem(file) {
+    // ファイルリストのアイテム作成
     const type = file.type.split('/')[0];
     const tag = { text: 'iframe', image: 'img', audio: 'audio', video: 'video' }[type];
     const item = document.createElement('div');
@@ -127,6 +150,7 @@ function createFileListItem(file) {
     item.className = `item ${type}`;
     media.src = `/${file.id}`;
     if (['audio', 'video'].includes(type)) {
+        // コントロールを表示(ただしダウンロードボタンは非表示にする)
         media.controls = true;
         media.controlsList = 'nodownload';
     }
@@ -148,6 +172,7 @@ function createFileListItem(file) {
 }
 
 function readableFileSize(size) {
+    // ～MBといった読みやすいファイルサイズの文字列に変換
     const units = ['B', 'KB', 'MB', 'GB'];
     let s = size;
     let i = 0;
@@ -159,6 +184,7 @@ function readableFileSize(size) {
 }
 
 function setHandler() {
+    // 削除ボタン、ダウンロードボタンのイベントハンドラー設定
     document.querySelectorAll('.delete-button').forEach(async btn => btn.onclick = async e => {
         const res = await fetch(`/filedel/${e.target.dataset.id}`);
         if (res.ok) {
@@ -172,4 +198,6 @@ function setHandler() {
         a.src = `/file/${e.target.dataset.id}`;
     });
 }
+
+// 初回ページアクセス時はSSRされるので、イベントハンドラー設定処理を実行
 setHandler();
