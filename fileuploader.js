@@ -94,10 +94,11 @@ router.get('/:id', async ctx => {
 });
 
 router.post('/fileup', async ctx => {
-    return asyncBusboy(ctx.req).then(({ files, fields }) => {
+    try {
+        const { files, fields } = await asyncBusboy(ctx.req);
         const res = [];
-        return files.reduce((promise, file) => {
-            return promise.then(_ => {
+        await Promise.all(files.map(async file => {
+            await (_ => {
                 return new Promise((resolve, reject) => {
                     gridfs.write(
                         {
@@ -105,54 +106,26 @@ router.post('/fileup', async ctx => {
                             contentType: file.mimeType
                         },
                         file,
-                        (err, file) => {
+                        (err, createdFile) => {
                             if (err) {
                                 reject(err);
                             } else {
                                 res.push({
-                                    id: file._id.toString(), // file._idはObjectId型
-                                    type: file.contentType,
-                                    name: file.filename
+                                    id: createdFile._id.toString(), // file._idはObjectId型
+                                    type: createdFile.contentType,
+                                    name: createdFile.filename
                                 });
                                 resolve();
                             }
                         }
                     );
                 });
-            })
-        }, Promise.resolve()).then(_ => {
-            ctx.type = 'text/json';
-            ctx.body = JSON.stringify(res);
-        });
-    });
-    // async await に変更するとうまくいかない
-    // try {
-    //     const { files, fields } = await asyncBusboy(ctx.req);
-    //     await files.forEach(async file => {
-    //         await (_ => {
-    //             return new Promise((resolve, reject) => {
-    //                 gridfs.write(
-    //                     {
-    //                         filename: file.filename,
-    //                         contentType: file.mimeType
-    //                     },
-    //                     file,
-    //                     (err, createdFile) => {
-    //                         if (err) {
-    //                             reject(err);
-    //                         } else {
-    //                             resolve();
-    //                         }
-    //                     }
-    //                 );
-    //             });
-    //         })();
-    //     });
-    //     ctx.body = 'success';
-    //     console.log('body set');
-    // } catch (err) {
-    //     ctx.throw(500);
-    // }
+            })();
+        }));
+        ctx.body = JSON.stringify(res);
+    } catch (err) {
+        ctx.throw(500);
+    }
 });
 
 router.get('/filedel/:id', async ctx => {
